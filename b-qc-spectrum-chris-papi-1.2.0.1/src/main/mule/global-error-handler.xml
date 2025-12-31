@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	
+<error-handler name="global-error-handler">
+		<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="6092b406-ac8c-4997-aadf-f4bbe835d667" type="APP:SAPI_ERROR_RESPONSE">
+			<logger level="ERROR" message="System API Error: #[payload]" />
+		</on-error-continue>
+		<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="ce6940d3-b1ea-4cf2-8e54-3a26a9a767c9" type="SALESFORCE-COMPOSITE:CONNECTIVITY, SALESFORCE-COMPOSITE:INVALID_SESSION, CONNECTIVITY, SALESFORCE-COMPOSITE:RETRY_EXHAUSTED, SALESFORCE-COMPOSITE:UNKNOWN">
+			<set-variable value="500" doc:name="Set Variable" doc:id="91dc50f1-6e4d-4bdb-9b3d-7fda1b06b760" variableName="salesforceCompositeConnectivityError" />
+			<ee:transform doc:name="Transform Message" doc:id="c7b6655c-42b1-4fa6-bee1-cfe71c35f1e6" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status": "FAILED",
+    "errorMessage": error.Description,
+    "httpStatus": vars.salesforceCompositeConnectivityError,
+    "message": "Salesforce connectivity/session failure detected. Error log will not be created in Salesforce due to connectivity failure",
+    "correlationId": uuid(),
+    "sourceSystem": "PAPI (CHRIS Process API)"
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<logger level="INFO" doc:name="Logger" doc:id="f1e3d066-215e-46dc-b0c2-bc042638d525" message="#[payload]" />
+		</on-error-continue>
+		<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="cae56959-07da-471f-87e5-dec0446b96eb" type="MULE:VALIDATION, MULE:EXPRESSION">
+			<set-variable value="400" doc:name="Set Variable" doc:id="4afe29ae-0f29-4f6e-a3b9-57f4b48ef917" variableName="muleTransformationError" />
+			<ee:transform doc:name="Transform Message" doc:id="8d202ef1-d1d7-40bf-82ec-b94a9b115c40">
+				<ee:message>
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status": "FAILED",
+	"errorMessage": error.description,
+	"httpStatus": vars.muleTransformationError,
+	"message": "Invalid data",
+	"correlationId": uuid(),
+	"sourceSystem": "PAPI (CHRIS Process API)"
+}]]></ee:set-payload>
+
+				</ee:message>
+				<ee:variables>
+				</ee:variables>
+			
+</ee:transform>
+			<flow-ref doc:name="Flow Reference" doc:id="d22d40b7-95f6-4261-9d15-45898f229049" name="sf-error-log-upsert-subflow"/>
+			<choice doc:name="Choice" doc:id="7cb465ce-2fc6-4522-ad26-ce2fda3a9a52" >
+				<when expression='#[error.errorType != "MULE:VALIDATION" or error.errorType != "MULE:EXPRESSION"]'>
+					<ee:transform doc:name="Transform Message" doc:id="e28e3b05-0ba1-46d5-9abe-92bfda1cd7eb" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<logger level="INFO" doc:name="Logger" doc:id="1c1468a2-a68d-4adc-96ea-62452b03ffa4" message="#[payload]"/>
+				</when>
+				<otherwise >
+					<ee:transform doc:name="Transform Message" doc:id="143e3c42-4d03-4d51-b031-c5d1a82f292e">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status": "FAILED",
+	"errorMessage": error.description,
+	"httpStatus": vars.muleTransformationError,
+	"message": "Invalid data",
+	"correlationId": uuid(),
+	"sourceSystem": "PAPI (CHRIS Process API)"
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+					<logger level="INFO" doc:name="Logger" doc:id="46715684-87b8-47c9-9b74-6f18cbec7ec2" message="#[vars.err2]" />
+				</otherwise>
+			</choice>
+		</on-error-continue>
+
+
+</error-handler>
+
+	
+	
+	</mule>
